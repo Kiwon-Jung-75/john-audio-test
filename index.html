@@ -53,3 +53,43 @@ document.addEventListener('keydown',e=>{if(e.target.closest('input'))return;if(e
 const params=new URLSearchParams(location.search);const initial=verses.findIndex(v=>v.chapter===Number(params.get('c')||1)&&v.number===Number(params.get('v')||params.get('start')||1));show(initial<0?0:initial);
 </script>
 </body></html>
+
+<script>
+
+/* Prototype is enabled only when opening the existing John 1:1 entry. */
+(()=>{
+if(Number(params.get('c')||1)!==1||Number(params.get('v')||params.get('start')||1)!==1)return;
+const css=document.createElement('style');css.textContent=`
+header .pick-trigger{font:inherit;color:inherit;background:transparent;border:1px solid #d8d2cd;border-radius:24px;padding:7px 12px;min-height:34px;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+header .pick-trigger[aria-expanded="true"]{background:#eae5e0;border-color:#b8afa7;color:#28251f}
+.number-picker{margin:12px 0 4px;padding:12px 8px;border:1px solid #ded8d2;border-radius:16px;background:#faf8f5;box-shadow:0 4px 16px #453a3010}
+.number-picker[hidden],.number-picker [hidden]{display:none!important}
+.picker-top{display:flex;align-items:center;justify-content:space-between;margin:0 4px 9px;color:#756f69;font-size:12px}
+.picker-close{border:0;border-radius:50%;background:transparent;color:#756f69;font-size:21px;width:30px;height:30px;padding:0}
+.number-grid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:5px 4px}
+.number-grid button{min-width:0;min-height:32px;padding:5px 0;border:1px solid #d8d2cd;border-radius:18px;background:transparent;color:#625c56;font:500 12px/1.1 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;font-variant-numeric:tabular-nums;-webkit-tap-highlight-color:transparent}
+.number-grid button[aria-pressed="true"]{background:#302e2b;border-color:#302e2b;color:white}
+.number-grid button:active{background:#e7e1da;color:#302e2b}
+.picker-verse-title{margin:14px 4px 9px;font-size:12px;color:#756f69;font-weight:500}
+@media(min-width:600px){.number-grid button{min-height:38px;font-size:14px}.number-picker{padding:14px 16px}}
+`;document.head.append(css);
+const makeTrigger=id=>{const old=document.getElementById(id),b=document.createElement('button');b.type='button';b.id=id;b.className='pick-trigger';b.textContent=old.textContent;b.setAttribute('aria-controls','numberPicker');b.setAttribute('aria-expanded','false');old.replaceWith(b);return b;};
+const chapterTrigger=makeTrigger('chapterTitle'),verseTrigger=makeTrigger('reference');
+chapterTrigger.setAttribute('aria-label','장 선택');verseTrigger.setAttribute('aria-label','절 선택');
+const panel=document.createElement('section');panel.id='numberPicker';panel.className='number-picker';panel.hidden=true;panel.setAttribute('aria-label','장과 절 선택');
+panel.innerHTML='<div class="picker-top"><span id="pickerTitle"></span><button type="button" class="picker-close" aria-label="선택 닫기">×</button></div><div id="chapterGrid" class="number-grid" role="group" aria-label="장 목록"></div><div id="verseSection" hidden><h2 class="picker-verse-title" id="versePickerTitle"></h2><div id="verseGrid" class="number-grid" role="group" aria-label="절 목록"></div></div>';
+reader.querySelector('header').after(panel);
+const chapterGrid=panel.querySelector('#chapterGrid'),verseGrid=panel.querySelector('#verseGrid'),verseSection=panel.querySelector('#verseSection');let pendingChapter=1,openedBy=null,mode='';
+function closePicker(returnFocus=false){panel.hidden=true;chapterTrigger.setAttribute('aria-expanded','false');verseTrigger.setAttribute('aria-expanded','false');if(returnFocus&&openedBy)openedBy.focus();}
+function numberButton(n,label,selected,action){const b=document.createElement('button');b.type='button';b.textContent=n;b.setAttribute('aria-label',label);b.setAttribute('aria-pressed',String(selected));b.addEventListener('click',action);return b;}
+function renderVerses(){verseGrid.replaceChildren();for(const [index,v] of verses.entries()){if(v.chapter!==pendingChapter)continue;verseGrid.append(numberButton(v.number,pendingChapter+'장 '+v.number+'절',index===current,()=>{closePicker();if(index!==current)show(index,true);else verseTrigger.focus();}));}panel.querySelector('#versePickerTitle').textContent=pendingChapter+'장 · 절 선택';verseSection.hidden=false;}
+function renderChapters(){chapterGrid.replaceChildren();for(let c=1;c<=21;c++)chapterGrid.append(numberButton(c,c+'장',c===pendingChapter,()=>{pendingChapter=c;renderChapters();renderVerses();}));}
+function openPicker(nextMode,trigger){if(!panel.hidden&&mode===nextMode){closePicker();return;}pendingChapter=verses[current].chapter;mode=nextMode;openedBy=trigger;chapterGrid.hidden=mode!=='chapter';verseSection.hidden=true;panel.querySelector('#pickerTitle').textContent=mode==='chapter'?'장 선택 후 절을 선택해 주세요':'절 선택';if(mode==='chapter')renderChapters();else renderVerses();panel.hidden=false;chapterTrigger.setAttribute('aria-expanded',String(mode==='chapter'));verseTrigger.setAttribute('aria-expanded',String(mode==='verse'));}
+chapterTrigger.addEventListener('click',()=>openPicker('chapter',chapterTrigger));verseTrigger.addEventListener('click',()=>openPicker('verse',verseTrigger));panel.querySelector('.picker-close').addEventListener('click',()=>closePicker(true));
+reader.addEventListener('pointerdown',e=>{if(e.target.closest('.number-picker,.pick-trigger'))gesture=null;},true);
+document.addEventListener('click',e=>{if(!panel.hidden&&!e.composedPath().includes(panel)&&!e.target.closest('.pick-trigger'))closePicker();});
+document.addEventListener('keydown',e=>{if(panel.hidden)return;if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();closePicker(true);}else if(e.target.closest('.number-picker')&&(e.key==='ArrowLeft'||e.key==='ArrowRight'))e.stopImmediatePropagation();},true);
+new MutationObserver(()=>closePicker()).observe(reader,{attributes:true,attributeFilter:['data-verse']});
+})();
+
+</script>
