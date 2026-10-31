@@ -56,9 +56,9 @@ const params=new URLSearchParams(location.search);const initial=verses.findIndex
 
 <script>
 
-/* Prototype is enabled only when opening the existing John 1:1 entry. */
+/* Numeric chapter and verse picker for every John entry. */
 (()=>{
-if(Number(params.get('c')||1)!==1||Number(params.get('v')||params.get('start')||1)!==1)return;
+
 const css=document.createElement('style');css.textContent=`
 header .pick-trigger{font:inherit;color:inherit;background:transparent;border:1px solid #d8d2cd;border-radius:24px;padding:7px 12px;min-height:34px;white-space:nowrap;-webkit-tap-highlight-color:transparent}
 header .pick-trigger[aria-expanded="true"]{background:#eae5e0;border-color:#b8afa7;color:#28251f}
