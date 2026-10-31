@@ -136,7 +136,7 @@ const style=document.createElement('style');style.textContent=`
 `;document.head.append(style);
 const launcher=document.createElement('button');launcher.type='button';launcher.className='practice-launch';launcher.textContent='암송 연습';launcher.setAttribute('aria-controls','memorize');
 document.getElementById('words').before(launcher);
-const area=document.createElement('section');area.id='memorize';area.hidden=true;area.setAttribute('aria-label','요한복음 1장 1절 암송 연습');
+const area=document.createElement('section');area.id='memorize';area.dataset.syncVersion='mobile-2';area.hidden=true;area.setAttribute('aria-label','요한복음 1장 1절 암송 연습');
 area.innerHTML='<div class="practice-top"><h2>요한복음 암송 연습</h2><button class="practice-back" type="button">듣기로 돌아가기</button></div><div class="practice-tabs" role="tablist" aria-label="연습 언어"><button type="button" role="tab" id="practiceKo" aria-selected="true" aria-controls="practicePage">한글로 연습</button><button type="button" role="tab" id="practiceEn" aria-selected="false" aria-controls="practicePage">영어로 확인</button></div><div id="practicePage" role="tabpanel" aria-labelledby="practiceKo"><p class="practice-description"></p><ol class="practice-list"></ol></div><div class="practice-actions"><button type="button" id="practiceAudio">전체 음성 듣기</button><button type="button" id="practicePronunciation" aria-pressed="false">발음 보기</button><button type="button" class="confirm" id="practiceFlip">영어 확인 →</button></div><p class="practice-footer">좌우로 쓸어넘겨 한글과 영어를 바꿔 보세요.</p>';
 launcher.after(area);let active=false,language='ko',revealed=new Set(),pronounced=new Set(),allPronunciation=false,touch=null,blockUntil=0;
 const list=area.querySelector('.practice-list'),ko=area.querySelector('#practiceKo'),en=area.querySelector('#practiceEn'),flip=area.querySelector('#practiceFlip'),listen=area.querySelector('#practiceAudio');
@@ -147,22 +147,37 @@ const row=document.createElement('div');row.className='practice-chunk';row.inner
 const pronunciation=row.querySelector('.chunk-pronunciation'),english=row.querySelector('.chunk-english');pronunciation.textContent=p;english.textContent=e;pronunciation.hidden=!(allPronunciation||pronounced.has(i));english.hidden=!revealed.has(i);
 for(const [name,isPronunciation] of [['발음',true],['영어',false]]){const btn=document.createElement('button');btn.type='button';btn.className='chunk-toggle';btn.textContent=name;btn.setAttribute('aria-label',k+' '+name+' 힌트');btn.setAttribute('aria-controls',(isPronunciation?'pron-':'eng-')+i);const target=isPronunciation?pronunciation:english;btn.setAttribute('aria-expanded',String(!target.hidden));btn.addEventListener('click',()=>{if(performance.now()<blockUntil)return;if(isPronunciation&&allPronunciation){allPronunciation=false;pronounced=new Set(chunks.map((_,n)=>n));}const state=isPronunciation?pronounced:revealed;state.has(i)?state.delete(i):state.add(i);target.hidden=!state.has(i);btn.setAttribute('aria-expanded',String(!target.hidden));updatePronunciationButton();});row.querySelector('.chunk-hints').append(btn);}li.append(row);
 }else{li.className='practice-english-row';const n=document.createElement('span');n.className='chunk-number';n.textContent=String(i+1).padStart(2,'0');const content=document.createElement('div');content.className='practice-english-content';const english=document.createElement('span');english.textContent=e;const pronunciation=document.createElement('span');pronunciation.className='chunk-pronunciation';pronunciation.textContent=p;pronunciation.hidden=!allPronunciation;content.append(english,pronunciation);li.append(n,content);}list.append(li);});flip.textContent=language==='ko'?'영어 확인 →':'← 다시 연습';updatePronunciationButton();syncChunk();}
-let syncFrame=0;
+let syncTimer=0,hasPracticePlayback=false;
 function syncChunk(){
 const t=audio.currentTime;
-const index=active&&!audio.ended?chunkTimes.findIndex(([start,end])=>t>=start&&t<end):-1;
-Array.from(list.children).forEach((row,i)=>{const speaking=i===index;row.classList.toggle('is-speaking',speaking);if(speaking)row.setAttribute('aria-current','true');else row.removeAttribute('aria-current');});
+let index=-1;
+if(active&&hasPracticePlayback&&!audio.ended){index=0;for(let i=1;i<chunkTimes.length;i++)if(t>=chunkTimes[i][0])index=i;}
+Array.from(list.children).forEach((row,i)=>{
+ const speaking=i===index;row.classList.toggle('is-speaking',speaking);
+ if(speaking){row.setAttribute('aria-current','true');row.style.setProperty('background-color','#ffe05c','important');row.style.setProperty('box-shadow','inset 4px 0 #9d6200','important');}
+ else{row.removeAttribute('aria-current');row.style.removeProperty('background-color');row.style.removeProperty('box-shadow');}
+ for(const text of row.querySelectorAll('.chunk-korean,.chunk-english,.chunk-pronunciation,.practice-english-content>span:first-child')){
+  if(speaking){text.style.setProperty('color','#704100','important');text.style.setProperty('font-weight','600','important');}
+  else{text.style.removeProperty('color');text.style.removeProperty('font-weight');}
+ }
+});
+area.querySelector('.practice-footer').textContent=index>=0?'음성 따라 읽기 · '+(index+1)+' / 6':'음성에 맞춰 노란색 줄이 이동합니다. 좌우로 쓸어넘겨 한글과 영어를 바꿔 보세요.';
 }
-function animateChunks(){syncFrame=0;syncChunk();if(active&&!audio.paused&&!audio.ended)syncFrame=requestAnimationFrame(animateChunks);}
-function refreshChunks(){cancelAnimationFrame(syncFrame);syncFrame=0;syncChunk();if(active&&!audio.paused&&!audio.ended)syncFrame=requestAnimationFrame(animateChunks);}
-for(const event of ['play','pause','ended','seeking','seeked','timeupdate','emptied'])audio.addEventListener(event,refreshChunks);
+function refreshChunks(){
+ if(!audio.paused&&!audio.ended)hasPracticePlayback=true;
+ syncChunk();
+ if(active&&!syncTimer)syncTimer=setInterval(syncChunk,80);
+ if(!active&&syncTimer){clearInterval(syncTimer);syncTimer=0;}
+}
+for(const event of ['play','playing','pause','ended','seeking','seeked','timeupdate','loadedmetadata','emptied'])audio.addEventListener(event,refreshChunks);
+document.addEventListener('visibilitychange',refreshChunks);
 function updatePronunciationButton(){const b=area.querySelector('#practicePronunciation');b.textContent=allPronunciation?'발음 숨기기':'발음 보기';b.setAttribute('aria-pressed',String(allPronunciation));}
 area.querySelector('#practicePronunciation').addEventListener('click',()=>{allPronunciation=!allPronunciation;pronounced.clear();draw();});
 
 function setLanguage(nextLanguage){language=nextLanguage;draw();}
 function exit(){active=false;refreshChunks();area.hidden=true;reader.classList.remove('is-practicing');launcher.hidden=reader.dataset.verse!=='1.1';audio.pause();launcher.focus();}
-launcher.addEventListener('click',()=>{active=true;language='ko';revealed.clear();pronounced.clear();allPronunciation=false;audio.pause();const picker=document.getElementById('numberPicker');if(picker)picker.hidden=true;for(const b of reader.querySelectorAll('.pick-trigger'))b.setAttribute('aria-expanded','false');reader.classList.add('is-practicing');launcher.hidden=true;area.hidden=false;draw();});
-area.querySelector('.practice-back').addEventListener('click',exit);ko.addEventListener('click',()=>setLanguage('ko'));en.addEventListener('click',()=>setLanguage('en'));flip.addEventListener('click',()=>setLanguage(language==='ko'?'en':'ko'));listen.addEventListener('click',()=>audio.paused?startAudio():audio.pause());for(const event of ['play','pause','ended'])audio.addEventListener(event,()=>listen.textContent=audio.paused?'전체 음성 듣기':'일시 정지');
+launcher.addEventListener('click',()=>{active=true;language='ko';revealed.clear();pronounced.clear();allPronunciation=false;hasPracticePlayback=false;audio.pause();audio.currentTime=0;const picker=document.getElementById('numberPicker');if(picker)picker.hidden=true;for(const b of reader.querySelectorAll('.pick-trigger'))b.setAttribute('aria-expanded','false');reader.classList.add('is-practicing');launcher.hidden=true;area.hidden=false;draw();refreshChunks();});
+area.querySelector('.practice-back').addEventListener('click',exit);ko.addEventListener('click',()=>setLanguage('ko'));en.addEventListener('click',()=>setLanguage('en'));flip.addEventListener('click',()=>setLanguage(language==='ko'?'en':'ko'));listen.addEventListener('click',()=>{if(audio.paused){hasPracticePlayback=true;if(audio.ended)audio.currentTime=0;startAudio();}else audio.pause();refreshChunks();});for(const event of ['play','pause','ended'])audio.addEventListener(event,()=>listen.textContent=audio.paused?'전체 음성 듣기':'일시 정지');
 document.addEventListener('pointerdown',e=>{if(!active||!reader.contains(e.target)||e.button!==0)return;touch={x:e.clientX,y:e.clientY,id:e.pointerId};gesture=null;},true);
 document.addEventListener('pointerup',e=>{if(!active||!touch||touch.id!==e.pointerId)return;const dx=e.clientX-touch.x,dy=e.clientY-touch.y;touch=null;gesture=null;if(Math.abs(dx)>48&&Math.abs(dx)>Math.abs(dy)*1.4){blockUntil=performance.now()+500;e.preventDefault();e.stopImmediatePropagation();setLanguage(dx<0?'en':'ko');}},true);
 document.addEventListener('pointercancel',()=>touch=null,true);
