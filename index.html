@@ -94,16 +94,21 @@ new MutationObserver(()=>closePicker()).observe(reader,{attributes:true,attribut
 
 </script>
 <script>
-
 /* John 1:1 chunk-based memorization trial. */
 (()=>{
 const chunks=[['처음에','In the beginning','인 더 비기닝'],['말씀이 있었다','was the Word','워쓰 더 워r드'],['그리고 말씀은','and the Word','앤 더 워r드'],['하나님과 함께 있었다','was with God','워쓰 윋 갇'],['그리고 말씀은','and the Word','앤 더 워r드'],['하나님이었다','was God','워쓰 갇']];
+const chunkTimes=[[1.07,2.01],[2.01,3.45],[3.89,5.13],[5.13,6.27],[7.17,7.95],[7.95,8.77]];
 const style=document.createElement('style');style.textContent=`
 .practice-launch{display:block;margin:16px auto 0;padding:9px 18px;border:1px solid #d8d2cd;border-radius:24px;background:transparent;color:#625c56;font:inherit;font-size:13px;min-height:38px}
 .practice-launch[hidden],#memorize[hidden]{display:none!important}
 #reader.is-practicing>#words,#reader.is-practicing>#player,#reader.is-practicing>nav,#reader.is-practicing>.hint,#reader.is-practicing>#status,#reader.is-practicing>.number-picker{display:none!important}
 #memorize [hidden]{display:none!important}
 .chunk-hints{display:flex;gap:5px;flex:none}.chunk-hints button{font:inherit;cursor:pointer;background:transparent;min-height:30px}.chunk-hints button[aria-expanded="true"]{background:#302e2b;border-color:#302e2b;color:#fff}.chunk-help{min-height:24px;margin:3px 0 0 24px}.chunk-help .chunk-english{margin:0;visibility:visible}.chunk-pronunciation{display:block;font-size:16px;line-height:1.5;color:#876745}.practice-english-content{flex:1}.practice-english-content .chunk-pronunciation{margin-top:7px;font-size:16px;letter-spacing:0}.practice-actions{flex-wrap:wrap}.practice-actions button{padding:9px 11px!important}.practice-chunk:focus-within{border-radius:8px}
+#memorize .practice-list li{border-radius:10px;transition:background-color .14s ease,box-shadow .14s ease}
+#memorize .practice-list li.is-speaking{background:#fff0aa;box-shadow:inset 3px 0 #d49b16}
+#memorize .is-speaking .chunk-korean,#memorize .is-speaking .chunk-english,#memorize .is-speaking .practice-english-content>span:first-child{color:#704a00}
+#memorize .is-speaking .chunk-number{color:#946813;font-weight:600}
+@media(prefers-reduced-motion:reduce){#memorize .practice-list li{transition:none}}
 #memorize{touch-action:pan-y;padding-top:16px;color:#302e2b}
 .practice-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
 .practice-top h2{font-size:17px;font-weight:500;margin:0;letter-spacing:-.025em}
@@ -141,12 +146,21 @@ list.replaceChildren();chunks.forEach(([k,e,p],i)=>{const li=document.createElem
 const row=document.createElement('div');row.className='practice-chunk';row.innerHTML='<div class="chunk-top"><span class="chunk-number">'+String(i+1).padStart(2,'0')+'</span><span class="chunk-korean">'+k+'</span><span class="chunk-hints"></span></div><div class="chunk-help"><span class="chunk-pronunciation" id="pron-'+i+'"></span><span class="chunk-english" id="eng-'+i+'"></span></div>';
 const pronunciation=row.querySelector('.chunk-pronunciation'),english=row.querySelector('.chunk-english');pronunciation.textContent=p;english.textContent=e;pronunciation.hidden=!(allPronunciation||pronounced.has(i));english.hidden=!revealed.has(i);
 for(const [name,isPronunciation] of [['발음',true],['영어',false]]){const btn=document.createElement('button');btn.type='button';btn.className='chunk-toggle';btn.textContent=name;btn.setAttribute('aria-label',k+' '+name+' 힌트');btn.setAttribute('aria-controls',(isPronunciation?'pron-':'eng-')+i);const target=isPronunciation?pronunciation:english;btn.setAttribute('aria-expanded',String(!target.hidden));btn.addEventListener('click',()=>{if(performance.now()<blockUntil)return;if(isPronunciation&&allPronunciation){allPronunciation=false;pronounced=new Set(chunks.map((_,n)=>n));}const state=isPronunciation?pronounced:revealed;state.has(i)?state.delete(i):state.add(i);target.hidden=!state.has(i);btn.setAttribute('aria-expanded',String(!target.hidden));updatePronunciationButton();});row.querySelector('.chunk-hints').append(btn);}li.append(row);
-}else{li.className='practice-english-row';const n=document.createElement('span');n.className='chunk-number';n.textContent=String(i+1).padStart(2,'0');const content=document.createElement('div');content.className='practice-english-content';const english=document.createElement('span');english.textContent=e;const pronunciation=document.createElement('span');pronunciation.className='chunk-pronunciation';pronunciation.textContent=p;pronunciation.hidden=!allPronunciation;content.append(english,pronunciation);li.append(n,content);}list.append(li);});flip.textContent=language==='ko'?'영어 확인 →':'← 다시 연습';updatePronunciationButton();}
+}else{li.className='practice-english-row';const n=document.createElement('span');n.className='chunk-number';n.textContent=String(i+1).padStart(2,'0');const content=document.createElement('div');content.className='practice-english-content';const english=document.createElement('span');english.textContent=e;const pronunciation=document.createElement('span');pronunciation.className='chunk-pronunciation';pronunciation.textContent=p;pronunciation.hidden=!allPronunciation;content.append(english,pronunciation);li.append(n,content);}list.append(li);});flip.textContent=language==='ko'?'영어 확인 →':'← 다시 연습';updatePronunciationButton();syncChunk();}
+let syncFrame=0;
+function syncChunk(){
+const t=audio.currentTime;
+const index=active&&!audio.ended?chunkTimes.findIndex(([start,end])=>t>=start&&t<end):-1;
+Array.from(list.children).forEach((row,i)=>{const speaking=i===index;row.classList.toggle('is-speaking',speaking);if(speaking)row.setAttribute('aria-current','true');else row.removeAttribute('aria-current');});
+}
+function animateChunks(){syncFrame=0;syncChunk();if(active&&!audio.paused&&!audio.ended)syncFrame=requestAnimationFrame(animateChunks);}
+function refreshChunks(){cancelAnimationFrame(syncFrame);syncFrame=0;syncChunk();if(active&&!audio.paused&&!audio.ended)syncFrame=requestAnimationFrame(animateChunks);}
+for(const event of ['play','pause','ended','seeking','seeked','timeupdate','emptied'])audio.addEventListener(event,refreshChunks);
 function updatePronunciationButton(){const b=area.querySelector('#practicePronunciation');b.textContent=allPronunciation?'발음 숨기기':'발음 보기';b.setAttribute('aria-pressed',String(allPronunciation));}
 area.querySelector('#practicePronunciation').addEventListener('click',()=>{allPronunciation=!allPronunciation;pronounced.clear();draw();});
 
 function setLanguage(nextLanguage){language=nextLanguage;draw();}
-function exit(){active=false;area.hidden=true;reader.classList.remove('is-practicing');launcher.hidden=reader.dataset.verse!=='1.1';audio.pause();launcher.focus();}
+function exit(){active=false;refreshChunks();area.hidden=true;reader.classList.remove('is-practicing');launcher.hidden=reader.dataset.verse!=='1.1';audio.pause();launcher.focus();}
 launcher.addEventListener('click',()=>{active=true;language='ko';revealed.clear();pronounced.clear();allPronunciation=false;audio.pause();const picker=document.getElementById('numberPicker');if(picker)picker.hidden=true;for(const b of reader.querySelectorAll('.pick-trigger'))b.setAttribute('aria-expanded','false');reader.classList.add('is-practicing');launcher.hidden=true;area.hidden=false;draw();});
 area.querySelector('.practice-back').addEventListener('click',exit);ko.addEventListener('click',()=>setLanguage('ko'));en.addEventListener('click',()=>setLanguage('en'));flip.addEventListener('click',()=>setLanguage(language==='ko'?'en':'ko'));listen.addEventListener('click',()=>audio.paused?startAudio():audio.pause());for(const event of ['play','pause','ended'])audio.addEventListener(event,()=>listen.textContent=audio.paused?'전체 음성 듣기':'일시 정지');
 document.addEventListener('pointerdown',e=>{if(!active||!reader.contains(e.target)||e.button!==0)return;touch={x:e.clientX,y:e.clientY,id:e.pointerId};gesture=null;},true);
