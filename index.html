@@ -93,3 +93,56 @@ new MutationObserver(()=>closePicker()).observe(reader,{attributes:true,attribut
 })();
 
 </script>
+<script>
+
+/* John 1:1 chunk-based memorization trial. */
+(()=>{
+const chunks=[['처음에','In the beginning'],['말씀이 있었다','was the Word'],['그리고 말씀은','and the Word'],['하나님과 함께 있었다','was with God'],['그리고 말씀은','and the Word'],['하나님이었다','was God']];
+const style=document.createElement('style');style.textContent=`
+.practice-launch{display:block;margin:16px auto 0;padding:9px 18px;border:1px solid #d8d2cd;border-radius:24px;background:transparent;color:#625c56;font:inherit;font-size:13px;min-height:38px}
+.practice-launch[hidden],#memorize[hidden]{display:none!important}
+#reader.is-practicing>#words,#reader.is-practicing>#player,#reader.is-practicing>nav,#reader.is-practicing>.hint,#reader.is-practicing>#status,#reader.is-practicing>.number-picker{display:none!important}
+#memorize{touch-action:pan-y;padding-top:16px;color:#302e2b}
+.practice-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
+.practice-top h2{font-size:17px;font-weight:500;margin:0;letter-spacing:-.025em}
+.practice-back{font:inherit;font-size:12px;border:0;background:transparent;color:#756f69;padding:8px 0 8px 8px;min-height:36px}
+.practice-tabs{display:flex;gap:6px;background:#eae5df;border-radius:24px;padding:4px;margin-bottom:12px}
+.practice-tabs button{flex:1;border:0;border-radius:20px;padding:9px 4px;font:inherit;font-size:13px;color:#756f69;background:transparent;min-height:36px}
+.practice-tabs button[aria-selected="true"]{background:#faf8f5;color:#302e2b;box-shadow:0 1px 4px #33221112}
+.practice-description{font-size:12px;color:#817a73;margin:0 0 8px;line-height:1.5}
+.practice-list{margin:0;padding:0;list-style:none}
+.practice-list li{border-bottom:1px solid #e1dbd5}
+.practice-chunk{display:block;width:100%;text-align:left;background:transparent;border:0;padding:11px 4px;font:inherit;color:inherit;border-radius:8px}
+.chunk-top{display:flex;gap:10px;align-items:center;min-height:26px}
+.chunk-number{font-size:11px;color:#a09890;min-width:14px;font-variant-numeric:tabular-nums}
+.chunk-korean{font-size:19px;line-height:1.4;letter-spacing:-.025em;flex:1}
+.chunk-toggle{font-size:11px;color:#817a73;border:1px solid #d8d2cd;border-radius:16px;padding:4px 8px;white-space:nowrap}
+.practice-chunk[aria-expanded="true"] .chunk-toggle{background:#302e2b;border-color:#302e2b;color:#fff}
+.chunk-english{display:block;font-size:16px;line-height:1.5;margin:3px 0 0 24px;min-height:24px;color:#756f69;visibility:hidden}
+.practice-chunk[aria-expanded="true"] .chunk-english{visibility:visible}
+.practice-english-row{display:flex;align-items:center;gap:10px;min-height:75px;padding:12px 4px;font-size:23px;line-height:1.35;letter-spacing:-.025em}
+.practice-actions{display:flex;gap:10px;justify-content:space-between;margin-top:16px}
+.practice-actions button{border:1px solid #d8d2cd;border-radius:22px;background:transparent;color:#625c56;min-height:40px;padding:9px 14px;font:inherit;font-size:13px}
+.practice-actions .confirm{background:#ffdc53;border-color:#ffdc53;color:#28251b}
+.practice-footer{font-size:11px;line-height:1.6;text-align:center;color:#8c847c;margin:12px 0 2px}
+@media(min-width:600px){#memorize{max-width:540px;margin:auto}.practice-chunk{padding:12px 6px}.chunk-korean{font-size:22px}.chunk-english{font-size:18px}.practice-english-row{font-size:27px;min-height:80px}}
+`;document.head.append(style);
+const launcher=document.createElement('button');launcher.type='button';launcher.className='practice-launch';launcher.textContent='암송 연습';launcher.setAttribute('aria-controls','memorize');
+document.getElementById('words').before(launcher);
+const area=document.createElement('section');area.id='memorize';area.hidden=true;area.setAttribute('aria-label','요한복음 1장 1절 암송 연습');
+area.innerHTML='<div class="practice-top"><h2>요한복음 암송 연습</h2><button class="practice-back" type="button">듣기로 돌아가기</button></div><div class="practice-tabs" role="tablist" aria-label="연습 언어"><button type="button" role="tab" id="practiceKo" aria-selected="true" aria-controls="practicePage">한글로 연습</button><button type="button" role="tab" id="practiceEn" aria-selected="false" aria-controls="practicePage">영어로 확인</button></div><div id="practicePage" role="tabpanel" aria-labelledby="practiceKo"><p class="practice-description"></p><ol class="practice-list"></ol></div><div class="practice-actions"><button type="button" id="practiceAudio">전체 음성 듣기</button><button type="button" class="confirm" id="practiceFlip">영어 확인 →</button></div><p class="practice-footer">좌우로 쓸어넘겨 한글과 영어를 바꿔 보세요.</p>';
+launcher.after(area);let active=false,language='ko',revealed=new Set(),touch=null,blockUntil=0;
+const list=area.querySelector('.practice-list'),ko=area.querySelector('#practiceKo'),en=area.querySelector('#practiceEn'),flip=area.querySelector('#practiceFlip'),listen=area.querySelector('#practiceAudio');
+function draw(){area.dataset.language=language;ko.setAttribute('aria-selected',String(language==='ko'));en.setAttribute('aria-selected',String(language==='en'));area.querySelector('#practicePage').setAttribute('aria-labelledby',language==='ko'?'practiceKo':'practiceEn');area.querySelector('.practice-description').textContent=language==='ko'?'한글을 보고 말해 보세요. 영어 힌트는 눌러서 확인합니다.':'여섯 청크를 이어서 소리 내어 읽어 보세요.';list.replaceChildren();chunks.forEach(([k,e],i)=>{const li=document.createElement('li');if(language==='ko'){const b=document.createElement('button');b.type='button';b.className='practice-chunk';b.setAttribute('aria-expanded',String(revealed.has(i)));b.setAttribute('aria-label',k+' 영어 힌트');b.innerHTML='<span class="chunk-top"><span class="chunk-number">'+String(i+1).padStart(2,'0')+'</span><span class="chunk-korean">'+k+'</span><span class="chunk-toggle">영어</span></span><span class="chunk-english">'+e+'</span>';b.addEventListener('click',()=>{if(performance.now()<blockUntil)return;revealed.has(i)?revealed.delete(i):revealed.add(i);b.setAttribute('aria-expanded',String(revealed.has(i)));});li.append(b);}else{li.className='practice-english-row';const n=document.createElement('span');n.className='chunk-number';n.textContent=String(i+1).padStart(2,'0');const text=document.createElement('span');text.textContent=e;li.append(n,text);}list.append(li);});flip.textContent=language==='ko'?'영어 확인 →':'← 다시 연습';}
+function setLanguage(nextLanguage){language=nextLanguage;draw();}
+function exit(){active=false;area.hidden=true;reader.classList.remove('is-practicing');launcher.hidden=reader.dataset.verse!=='1.1';audio.pause();launcher.focus();}
+launcher.addEventListener('click',()=>{active=true;language='ko';revealed.clear();audio.pause();const picker=document.getElementById('numberPicker');if(picker)picker.hidden=true;for(const b of reader.querySelectorAll('.pick-trigger'))b.setAttribute('aria-expanded','false');reader.classList.add('is-practicing');launcher.hidden=true;area.hidden=false;draw();});
+area.querySelector('.practice-back').addEventListener('click',exit);ko.addEventListener('click',()=>setLanguage('ko'));en.addEventListener('click',()=>setLanguage('en'));flip.addEventListener('click',()=>setLanguage(language==='ko'?'en':'ko'));listen.addEventListener('click',()=>audio.paused?startAudio():audio.pause());for(const event of ['play','pause','ended'])audio.addEventListener(event,()=>listen.textContent=audio.paused?'전체 음성 듣기':'일시 정지');
+document.addEventListener('pointerdown',e=>{if(!active||!area.contains(e.target)||e.button!==0)return;touch={x:e.clientX,y:e.clientY,id:e.pointerId};gesture=null;},true);
+document.addEventListener('pointerup',e=>{if(!active||!touch||touch.id!==e.pointerId)return;const dx=e.clientX-touch.x,dy=e.clientY-touch.y;touch=null;gesture=null;if(Math.abs(dx)>48&&Math.abs(dx)>Math.abs(dy)*1.4){blockUntil=performance.now()+500;e.preventDefault();e.stopImmediatePropagation();setLanguage(dx<0?'en':'ko');}},true);
+document.addEventListener('pointercancel',()=>touch=null,true);
+document.addEventListener('keydown',e=>{if(!active)return;if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();e.stopImmediatePropagation();setLanguage(e.key==='ArrowRight'?'en':'ko');}if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();exit();}},true);
+new MutationObserver(()=>{if(reader.dataset.verse!=='1.1'&&active)exit();launcher.hidden=active||reader.dataset.verse!=='1.1';}).observe(reader,{attributes:true,attributeFilter:['data-verse']});launcher.hidden=reader.dataset.verse!=='1.1';
+})();
+
+</script>
